@@ -174,47 +174,77 @@ class AgentDDPG(ptan.agent.BaseAgent):
 
 
 class DQNCNN(nn.Module):
-    def __init__(self, obs_dim, neighbor_dim, bankAction_dim, aimAction_dim, freqActions_dim):
+    def __init__(self, obs_dim, mec_dim, bankAction_dim, aimAction_dim, freqActions_dim, vehicle_num):
         super(DQNCNN, self).__init__()
-        self.input_layer = nn.Linear(obs_dim + 32, 128)
+        self.input_layer = nn.Linear(128 + 32, 128)
         self.hidden1 = nn.Linear(128, 64)
         self.hidden2 = nn.Linear(64, 64)
         self.hidden3 = nn.Linear(64, 128)
-        self.cnn2 = CNNLayer(neighbor_dim, 32)
-        self.output_layer1 = self.common(64, bankAction_dim)
-        self.output_layer2 = self.common(64, aimAction_dim)
-        self.output_layer3 = self.common(64, freqActions_dim)
+        self.cnn1 = CNNLayer(obs_dim, 128)
+        self.cnn2 = CNNLayer(mec_dim, 32)
+        # self.output_layer1 = self.common(64, bankAction_dim)
+        # self.output_layer2 = self.common(64, aimAction_dim)
+        # self.output_layer3 = self.common(64, freqActions_dim)
+        self.devide = []
+        for i in range(vehicle_num):
+            self.devide.append(self.common(128, bankAction_dim, aimAction_dim, freqActions_dim))
 
-    def common(self, input_dim, action_dim):
-        return nn.Sequential(
+    def common(self, input_dim, bankAction_dim, aimAction_dim, freqActions_dim):
+        x = nn.Sequential(
             nn.Linear(input_dim, 128),
             nn.ReLU(),
             self.hidden1,
             nn.ReLU(),
             self.hidden2,
             nn.ReLU(),
-            nn.Linear(64, action_dim)
+            nn.Linear(64, bankAction_dim)
         )
+        y = nn.Sequential(
+            nn.Linear(input_dim, 128),
+            nn.ReLU(),
+            self.hidden1,
+            nn.ReLU(),
+            self.hidden2,
+            nn.ReLU(),
+            nn.Linear(64, aimAction_dim)
+        )
+        z = nn.Sequential(
+            nn.Linear(input_dim, 128),
+            nn.ReLU(),
+            self.hidden1,
+            nn.ReLU(),
+            self.hidden2,
+            nn.ReLU(),
+            nn.Linear(64, freqActions_dim)
+        )
+        return x, y, z
 
-    def forward(self, x, neighbor):
+    def forward(self, obs, mec):
         """
 
-        :param x: batch_size*state_n
+        :param obs: batch_size*state_n
+        :param mec: batch_size*state_n
         :return: batch_size*actions_n  输出每个动作对应的q值
         """
         # 任务卷积层
-        cnn_out2 = self.cnn2(neighbor)
-        x = torch.cat((x, cnn_out2), -1)
+        cnn_out1 = self.cnn1(obs)
+        cnn_out2 = self.cnn2(mec)
+        x = torch.cat((cnn_out1, cnn_out2), -1)
 
         # 公共层
         x1 = F.relu(self.input_layer(x))
         x2 = F.relu(self.hidden1(x1))
         x3 = F.relu(self.hidden2(x2))
+        x4 = F.relu(self.hidden3(x3))
 
-        bandActionValue = self.output_layer1(x3)
-        aimActionValue = self.output_layer2(x3)
-        freqActionValue = self.output_layer3(x3)
-
+        bandActionValue = []
+        aimActionValue = []
+        freqActionValue = []
+        for common in self.devide:
+            bv, av, fv = common(x4)
+            bandActionValue.append(bv)
+            aimActionValue.append(av)
+            freqActionValue.append(fv)
         return bandActionValue, aimActionValue, freqActionValue
 
 

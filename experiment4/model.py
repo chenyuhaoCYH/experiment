@@ -1,4 +1,7 @@
 # import ptan
+import copy
+import math
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -9,22 +12,52 @@ HID_SIZE = 64
 HID_SIZE_MIN = 32
 
 
+class TargetNet:
+    """
+    Wrapper around model which provides copy of it instead of trained weights
+    """
+
+    def __init__(self, model):
+        self.model = model
+        self.target_model = copy.deepcopy(model)
+
+    def sync(self):
+        self.target_model.load_state_dict(self.model.state_dict())
+
+    # 软更新
+    def alpha_sync(self, alpha):
+        """
+        Blend params of target net with params from the model
+        :param alpha:
+        """
+        assert isinstance(alpha, float)
+        assert 0.0 < alpha <= 1.0
+        state = self.model.state_dict()
+        tgt_state = self.target_model.state_dict()
+        for k, v in state.items():
+            tgt_state[k] = tgt_state[k] * alpha + (1 - alpha) * v
+        self.target_model.load_state_dict(tgt_state)
+
+
 class ModelActor(nn.Module):
     def __init__(self, obs_dim, neighbor_dim, bankAction_dim, aimAction_dim, freqActions_dim):
         super(ModelActor, self).__init__()
 
         self.cnn_neighbor = CNNLayer(neighbor_dim, HID_SIZE_MIN)
         self.same = nn.Sequential(
-            nn.Linear(HID_SIZE + HID_SIZE_MIN + obs_dim, 2 * HID_SIZE),
+            nn.Linear(HID_SIZE_MIN + obs_dim, 2 * HID_SIZE),
             nn.ReLU(),
+            SelfAttention(8, HID_SIZE * 2, HID_SIZE * 2, 0.2),
             nn.Linear(2 * HID_SIZE, HID_SIZE),
             nn.ReLU(),
+            SelfAttention(8, HID_SIZE, HID_SIZE, 0.2),
             nn.Linear(HID_SIZE, 2 * HID_SIZE),
             nn.ReLU(),
         )
         self.bank = nn.Sequential(
             nn.Linear(2 * HID_SIZE, HID_SIZE),
             nn.ReLU(),
+            SelfAttention(8, HID_SIZE, HID_SIZE, 0.2),
             nn.Linear(HID_SIZE, HID_SIZE_MIN),
             nn.ReLU(),
             nn.Linear(HID_SIZE_MIN, bankAction_dim),
@@ -32,6 +65,7 @@ class ModelActor(nn.Module):
         self.aim = nn.Sequential(
             nn.Linear(2 * HID_SIZE, HID_SIZE),
             nn.ReLU(),
+            SelfAttention(8, HID_SIZE, HID_SIZE, 0.2),
             nn.Linear(HID_SIZE, HID_SIZE_MIN),
             nn.ReLU(),
             nn.Linear(HID_SIZE_MIN, aimAction_dim),
@@ -39,6 +73,7 @@ class ModelActor(nn.Module):
         self.freq = nn.Sequential(
             nn.Linear(2 * HID_SIZE, HID_SIZE),
             nn.ReLU(),
+            SelfAttention(8, HID_SIZE, HID_SIZE, 0.2),
             nn.Linear(HID_SIZE, HID_SIZE_MIN),
             nn.ReLU(),
             nn.Linear(HID_SIZE_MIN, freqActions_dim),
@@ -80,28 +115,34 @@ class ModelCritic(nn.Module):
         self.cnn = CNNLayer(obs_size, HID_SIZE)
 
         self.bank_value = nn.Sequential(
-            nn.Linear(HID_SIZE * 2 + bank_action, HID_SIZE * 2),
+            nn.Linear(HID_SIZE + bank_action, HID_SIZE * 2),
             nn.ReLU(),
+            SelfAttention(8, HID_SIZE * 2, HID_SIZE * 2, 0.2),
             nn.Linear(HID_SIZE * 2, HID_SIZE),
             nn.ReLU(),
+            SelfAttention(8, HID_SIZE, HID_SIZE, 0.2),
             nn.Linear(HID_SIZE, HID_SIZE_MIN),
             nn.ReLU(),
             nn.Linear(HID_SIZE_MIN, 1),
         )
         self.aim_value = nn.Sequential(
-            nn.Linear(HID_SIZE * 2 + aim_action, HID_SIZE * 2),
+            nn.Linear(HID_SIZE + aim_action, HID_SIZE * 2),
             nn.ReLU(),
+            SelfAttention(8, HID_SIZE*2, HID_SIZE*2, 0.2),
             nn.Linear(HID_SIZE * 2, HID_SIZE),
             nn.ReLU(),
+            SelfAttention(8, HID_SIZE, HID_SIZE, 0.2),
             nn.Linear(HID_SIZE, HID_SIZE_MIN),
             nn.ReLU(),
             nn.Linear(HID_SIZE_MIN, 1),
         )
         self.freq_value = nn.Sequential(
-            nn.Linear(HID_SIZE * 2 + freq_action, HID_SIZE * 2),
+            nn.Linear(HID_SIZE + freq_action, HID_SIZE * 2),
             nn.ReLU(),
+            SelfAttention(8, HID_SIZE * 2, HID_SIZE * 2, 0.2),
             nn.Linear(HID_SIZE * 2, HID_SIZE),
             nn.ReLU(),
+            SelfAttention(8, HID_SIZE, HID_SIZE, 0.2),
             nn.Linear(HID_SIZE, HID_SIZE_MIN),
             nn.ReLU(),
             nn.Linear(HID_SIZE_MIN, 1),
@@ -189,94 +230,6 @@ class AgentDDPG(ptan.agent.BaseAgent):
 """
 
 
-class DQNCNN(nn.Module):
-    def __init__(self, obs_dim, neighbor_dim, bankAction_dim, aimAction_dim, freqActions_dim):
-        super(DQNCNN, self).__init__()
-        self.input_layer = nn.Linear(obs_dim + 32, 128)
-        self.hidden1 = nn.Linear(128, 64)
-        self.hidden2 = nn.Linear(64, 64)
-        self.hidden3 = nn.Linear(64, 128)
-        self.cnn2 = CNNLayer(neighbor_dim, 32)
-        self.output_layer1 = self.common(64, bankAction_dim)
-        self.output_layer2 = self.common(64, aimAction_dim)
-        self.output_layer3 = self.common(64, freqActions_dim)
-
-    def common(self, input_dim, action_dim):
-        return nn.Sequential(
-            nn.Linear(input_dim, 128),
-            nn.ReLU(),
-            self.hidden1,
-            nn.ReLU(),
-            self.hidden2,
-            nn.ReLU(),
-            nn.Linear(64, action_dim)
-        )
-
-    def forward(self, x, neighbor):
-        """
-
-        :param x: batch_size*state_n
-        :return: batch_size*actions_n  输出每个动作对应的q值
-        """
-        # 任务卷积层
-        cnn_out2 = self.cnn2(neighbor)
-        x = torch.cat((x, cnn_out2), -1)
-
-        # 公共层
-        x1 = F.relu(self.input_layer(x))
-        x2 = F.relu(self.hidden1(x1))
-        x3 = F.relu(self.hidden2(x2))
-
-        bandActionValue = self.output_layer1(x3)
-        aimActionValue = self.output_layer2(x3)
-        freqActionValue = self.output_layer3(x3)
-
-        return bandActionValue, aimActionValue, freqActionValue
-
-
-class DQN(nn.Module):
-    def __init__(self, obs_dim, task_dim, taskAction_dim, aimAction_dim):
-        super(DQN, self).__init__()
-        self.input_layer = nn.Linear(obs_dim + 32, 128)
-        self.hidden1 = nn.Linear(128, 64)
-        self.hidden2 = nn.Linear(64, 64)
-        self.hidden3 = nn.Linear(64, 128)
-        self.cnn = CNNLayer(task_dim, 32)
-        self.output_layer1 = self.common(64, taskAction_dim)
-        self.output_layer2 = self.common(64, aimAction_dim)
-
-    def common(self, input_dim, action_dim):
-        return nn.Sequential(
-            nn.Linear(input_dim, 128),
-            nn.ReLU(),
-            self.hidden1,
-            nn.ReLU(),
-            self.hidden2,
-            nn.ReLU(),
-            nn.Linear(64, action_dim)
-        )
-
-    def forward(self, x, task):
-        """
-
-        :param x: batch_size*state_n
-        :return: batch_size*actions_n  输出每个动作对应的q值
-        """
-        # 任务卷积层
-        cnn_out = self.cnn(task)
-        x = torch.cat((x, cnn_out), -1)
-
-        # 公共层
-        x1 = F.relu(self.input_layer(x))
-        x2 = F.relu(self.hidden1(x1))
-        x3 = F.relu(self.hidden2(x2))
-
-        taskActionValue = self.output_layer1(x3)
-        aimActionValue = self.output_layer2(x3)
-
-        return taskActionValue, aimActionValue
-
-
 class CNNLayer(nn.Module):
     def __init__(self, obs_shape, hidden_size, use_orthogonal=True, use_ReLU=True, kernel_size=3, stride=1):
         super(CNNLayer, self).__init__()
@@ -311,6 +264,85 @@ class CNNLayer(nn.Module):
         x = self.cnn(x)
 
         return x
+
+
+class LayerNorm(nn.Module):
+    def __init__(self, hidden_size, eps=1e-12):
+        """Construct a layernorm module in the TF style (epsilon inside the square root).
+        """
+        super(LayerNorm, self).__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.bias = nn.Parameter(torch.zeros(hidden_size))
+        self.variance_epsilon = eps
+
+    def forward(self, x):
+        u = x.mean(-1, keepdim=True)
+        s = (x - u).pow(2).mean(-1, keepdim=True)
+        x = (x - u) / torch.sqrt(s + self.variance_epsilon)
+        return self.weight * x + self.bias
+
+
+class SelfAttention(nn.Module):
+    def __init__(self, num_attention_heads, input_size, hidden_size, hidden_dropout_prob):
+        super(SelfAttention, self).__init__()
+        if hidden_size % num_attention_heads != 0:
+            raise ValueError(
+                "The hidden size (%d) is not a multiple of the number of attention "
+                "heads (%d)" % (hidden_size, num_attention_heads))
+        self.num_attention_heads = num_attention_heads
+        self.attention_head_size = int(hidden_size / num_attention_heads)
+        self.all_head_size = hidden_size
+
+        self.query = nn.Linear(input_size, self.all_head_size)
+        self.key = nn.Linear(input_size, self.all_head_size)
+        self.value = nn.Linear(input_size, self.all_head_size)
+
+        self.attn_dropout = nn.Dropout(hidden_dropout_prob)
+
+        # 做完self-attention 做一个前馈全连接 LayerNorm 输出
+        self.dense = nn.Linear(hidden_size, hidden_size)
+        self.LayerNorm = LayerNorm(hidden_size, eps=1e-12)
+        self.out_dropout = nn.Dropout(hidden_dropout_prob)
+
+    def transpose_for_scores(self, x):
+        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
+        x = x.view(*new_x_shape)
+        return x.permute(0, 2, 1)
+
+    def forward(self, input_tensor):
+        mixed_query_layer = self.query(input_tensor)
+        mixed_key_layer = self.key(input_tensor)
+        mixed_value_layer = self.value(input_tensor)
+
+        query_layer = self.transpose_for_scores(mixed_query_layer)
+        key_layer = self.transpose_for_scores(mixed_key_layer)
+        value_layer = self.transpose_for_scores(mixed_value_layer)
+
+        # Take the dot product between "query" and "key" to get the raw attention scores.
+        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+
+        attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+        # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
+        # [batch_size heads seq_len seq_len] scores
+        # [batch_size 1 1 seq_len]
+
+        # attention_scores = attention_scores + attention_mask
+
+        # Normalize the attention scores to probabilities.
+        attention_probs = nn.Softmax(dim=-1)(attention_scores)
+        # This is actually dropping out entire tokens to attend to, which might
+        # seem a bit unusual, but is taken from the original Transformer paper.
+        # Fixme
+        attention_probs = self.attn_dropout(attention_probs)
+        context_layer = torch.matmul(attention_probs, value_layer)
+        context_layer = context_layer.permute(0, 2, 1).contiguous()
+        new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
+        context_layer = context_layer.view(*new_context_layer_shape)
+        hidden_states = self.dense(context_layer)
+        hidden_states = self.out_dropout(hidden_states)
+        hidden_states = self.LayerNorm(hidden_states + input_tensor)
+
+        return hidden_states
 
 
 def init(module, weight_init, bias_init, gain=1):

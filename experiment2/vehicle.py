@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from MyQueue import MyQueue
 from memory import ExperienceBuffer, PPOMemory
 from task import Task
 
@@ -9,7 +8,7 @@ Dv = 100  # 车的最大通信范围
 Fv = 2000  # 车最大计算能力  MHZ
 
 CAPACITY = 10000  # 缓冲池大小
-TASK_SOLT = 10  # 任务产生时隙
+TASK_SOLT = 20  # 任务产生时隙
 
 np.random.seed(2)
 
@@ -48,8 +47,8 @@ class Vehicle:
         self.cur_resource = self.resources
         # 表示当前是否有任务正在传输给邻居车辆（0：没有，1：有）
         self.trans_task_for_vehicle = 0
-        # 等待传输的任务
-        self.queue_for_trans_vehicle = MyQueue()
+        # 当前选择的信道
+        self.band = -1
         # 当前处理的任务（用于计算奖励，不用于状态信息）
         self.cur_task = None
         # 判断是否需要重新计算
@@ -102,12 +101,12 @@ class Vehicle:
 
     # 产生任务 传入当前时间
     def create_work(self):
-        if self.id % 4 == 0:
-            return
-            # 每隔一段时间进行一次任务产生
+        # if self.id % 4 == 0:
+        #     return
+        # 每隔一段时间进行一次任务产生
         if self.cur_frame - self.lastCreatWorkTime >= self.timeSolt and self.cur_task is None:
             # # 每次有0.8的概率产生任务
-            if np.random.random() < 0.8:
+            if np.random.random() < 0.5:
                 self.cur_task = Task(self, self.cur_frame % 20000)
                 self.lastCreatWorkTime = self.cur_frame
             else:
@@ -136,6 +135,9 @@ class Vehicle:
 
         # 当前处理的任务量
         self.self_state.append(len(self.accept_task))
+
+        # 当前选择的信道
+        self.self_state.append(self.band)
 
         # 当前是否有任务在传输
         # self.self_state.append(self.queue_for_trans_vehicle.size())

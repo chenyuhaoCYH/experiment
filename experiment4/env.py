@@ -21,7 +21,7 @@ c = 0.2  # 奖励中支付占比
 T1 = -0.5
 T2 = -0.7
 T3 = 0.05
-PUNISH = -12
+PUNISH = 20
 SmallPunish = -5
 
 # 价格系数（MEC、VEC、local）
@@ -71,7 +71,7 @@ class Env:
         # 环境内所有车辆
         self.vehicles = []
         # 环境内的mec位于最中间
-        self.MECs = [MEC([21, 500]), MEC([0, 1500]), MEC([21, 2500])]
+        self.MECs = []
 
         # 车辆数以及mec数
         self.num_Vehicles = num_Vehicles
@@ -102,15 +102,18 @@ class Env:
     # 添加车辆
     def add_new_vehicles(self, id, position, direction, velocity):
         vehicle = Vehicle(id=id, position=position, direction=direction, velocity=velocity)
+        # position.append([id, position, direction, velocity])
         self.vehicles.append(vehicle)
 
     # 初始化/重置环境
     def reset(self):
         self.Reward = 0
+        self.vehicles = []
         self.vehicleState = []
         self.cur_frame = 0
         self.offloadingActions = [0] * self.num_Vehicles
         self.reward = [0] * self.num_Vehicles
+        self.MECs = [MEC([21, 500]), MEC([0, 1500]), MEC([21, 2500])]
 
         for i in range(self.num_Vehicles):
             self.vehicleReward.append([])
@@ -150,6 +153,33 @@ class Env:
             self.neighborState.append(vehicle.get_neighbor_states())
         for mec in self.MECs:
             self.mecState.append(mec.get_state())
+
+    # def re(self):
+    #     self.Reward = 0
+    #     self.vehicleState = []
+    #     self.cur_frame = 0
+    #     self.offloadingActions = [0] * self.num_Vehicles
+    #     self.reward = [0] * self.num_Vehicles
+    #     self.MECs = [MEC([21, 500]), MEC([0, 1500]), MEC([21, 2500])]
+    #
+    #     for i in range(self.num_Vehicles):
+    #         self.vehicleReward.append([])
+    #
+    #     for position in positions:
+    #         self.add_new_vehicles(position[0], [position[1], position[2]], position[3], position[4])
+    #     # 初始化邻居信息
+    #     self.renew_neighbor()
+    #     # 初始化邻居mec
+    #     self.renew_mec()
+    #     # 初始化状态信息
+    #     for vehicle in self.vehicles:
+    #         # 全局状态
+    #         self.vehicleState.append(vehicle.get_state())
+    #     for vehicle in self.vehicles:
+    #         # 邻居状态
+    #         self.neighborState.append(vehicle.get_neighbor_states())
+    #     for mec in self.MECs:
+    #         self.mecState.append(mec.get_state())
 
     # 更新每辆车邻居表
     def renew_neighbor(self):
@@ -206,7 +236,7 @@ class Env:
             if ratio >= 1:
                 for task_vehicle in vehicle.task_vehicle:
                     self.freqActions[task_vehicle.id] = 0.9 * round(self.freqActions[task_vehicle.id] / ratio, 2)
-                    self.reward[task_vehicle.id] += SmallPunish
+                    # self.reward[task_vehicle.id] += SmallPunish
         # 每个mec判断资源分配
         for mec in self.MECs:
             ratio = 0
@@ -233,7 +263,7 @@ class Env:
                 # print("车{}获得{}服务器{}资源".format(task_vehicle.id, vehicle.id, task.compute_resource))
                 task.need_time = task.need_precess_cycle / task.compute_resource  # 记录任务需要计算时间(ms)
                 if task.need_time >= 100:
-                    # print("车{}任务超时".format(task_vehicle.id))
+                    print("车{}任务超时".format(task_vehicle.id))
                     self.reward[task_vehicle.id] += PUNISH
                     task_vehicle.cur_task = None
                     continue
@@ -262,7 +292,7 @@ class Env:
                 task.need_time = task.need_precess_cycle / task.compute_resource  # 记录任务需要计算时间(ms)
                 if task.need_time >= 100:
                     self.reward[task_vehicle.id] += PUNISH
-                    # print("车{}任务超时".format(task_vehicle.id))
+                    print("车{}任务超时".format(task_vehicle.id))
                     task_vehicle.cur_task = None
                     continue
                 # print("车{}需要计算时间{}".format(task_vehicle.id, task.need_time))
@@ -363,8 +393,8 @@ class Env:
         interference += sig2
         signals = 10 ** ((power + vehicle.fade + self.vehAntGain + self.bsAntGain - self.bsNoiseFigure) / 10)
         rate = round(vehicle.Mec.brand * np.log2(1 + np.divide(signals, interference)), 3) / 8
-        print("第{}辆车速率:{} kb/ms".format(vehicle.id, rate))
-        return rate  # kb/ms
+        # print("第{}辆车速率:{} kb/ms".format(vehicle.id, rate))
+        return rate / 8  # kb/ms
 
     @staticmethod
     def compute_energy(trans_time, aim):
@@ -381,6 +411,7 @@ class Env:
         # 计算时间
         compute_time = task.need_time
         sum_time = trans_time + compute_time
+        # print("vehicle {} compute time {}".format(vehicle.id, compute_time))
         self.avg_time[vehicle.id].append(sum_time)
 
         # if task.aim != vehicle:
@@ -403,7 +434,8 @@ class Env:
         # #     energy /= 10
         # self.avg_price[vehicle.id].append(price)
         # self.avg_energy[vehicle.id].append(energy)
-        reward = sum_time / (task.size / 20)
+
+        reward = 50 - sum_time * (task.size / 512)
 
         # if sum_time > task.max_time:
         #     reward += T2 * (sum_time - task.max_time) / 10
@@ -459,7 +491,7 @@ class Env:
                     f = task.compute_resource
                     # 遍历此车的所有任务列表
                     precessed_time = task.need_precess_cycle / f
-                    if precessed_time > time:
+                    if 80 > precessed_time > time:
                         # 不能处理完
                         task.need_precess_cycle -= f * time
                         retain_task.append(task)
@@ -475,7 +507,7 @@ class Env:
                 for task in total_task:
                     f = task.compute_resource
                     precessed_time = task.need_precess_cycle / f
-                    if precessed_time > time:
+                    if time < precessed_time < 80:
                         task.need_precess_cycle -= f * time
                         retain_task.append(task)
                     else:
@@ -511,6 +543,7 @@ class Env:
         更新状态
         """
         self.vehicleState = []
+        self.neighborState = []
         self.mecState = []
 
         # 更新车位置信息
@@ -573,7 +606,7 @@ class Env:
         # print("当前有{}个任务没传输完成".format(len(self.need_trans_task)))
 
         # 平均奖励
-        self.Reward = np.mean([reward for i, reward in enumerate(self.reward)])  # if i % 4 != 0
+        self.Reward = np.mean([reward for i, reward in enumerate(self.reward) if reward != 0])  # if i % 4 != 0
         return vehicleState, neighbor_state, self.vehicleState, self.neighborState, self.Reward, self.reward
 
 

@@ -162,10 +162,8 @@ if __name__ == '__main__':
         print("current reward:", reward)
         print("current 100 times total rewards:", np.mean(total_reward[-100:]))
         recent_reward.append(np.mean(total_reward[-100:]))
-        if epsilon % 100000 == 0:
-            env.reset()
-        # if np.mean(total_reward[-100:]) > 0.7:
-        #     break
+        # if epsilon % 100000 == 0:
+        #     env.reset()
 
         for i, vehicle in enumerate(vehicles):
             if len(vehicle.buffer) < REPLAY_INITIAL:

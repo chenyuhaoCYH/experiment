@@ -14,7 +14,7 @@ import matplotlib.font_manager as fm
 import netron
 
 from env import Env
-from model import DQN, DQNCNN
+from model import *
 
 np.random.seed(2)
 
@@ -32,7 +32,7 @@ Experience = namedtuple('Transition',
                                      'reward',  # 奖励
                                      'next_otherState', 'next_NeighborState'])  # Define a transition tuple
 GAMMA = 0.99
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 REPLAY_SIZE = 1000
 LEARNING_RATE = 1e-4
 SYNC_TARGET_FRAMES = 100  # 更新目标网络频率
@@ -233,6 +233,7 @@ if __name__ == '__main__':
                                i) + ".pkl")
 
     plt.plot(range(len(recent_reward)), recent_reward)
+    # plt.plot(range(len(total_reward)), total_reward)
     plt.ylabel("Average Reward", fontproperties=prop)
     plt.xlabel("Episode", fontproperties=prop)
     plt.show()

@@ -4,7 +4,7 @@ import numpy as np
 from mec import MEC
 from vehicle import Vehicle
 
-N = 20  # 车的数量
+N = 32  # 车的数量
 MAX_NEIGHBOR = 5  # 最大邻居数
 CAPACITY = 20000  # 缓冲池大小
 time_solt = 10
@@ -21,7 +21,8 @@ c = 0.2  # 奖励中支付占比
 T1 = -0.5
 T2 = -0.7
 T3 = 0.05
-PUNISH = -5
+PUNISH = 15
+SmallPunish = 5
 
 # 价格系数（MEC、VEC、local）
 MEC_Price = 0.15
@@ -164,8 +165,6 @@ class Env:
 
     # 更新每辆车最近的mec
     def renew_mec(self):
-        for mec in self.MECs:
-            mec.clear_vehicle()
         for i in range(len(self.vehicles)):
             vehicle = self.vehicles[i]
             cur = -1
@@ -207,6 +206,7 @@ class Env:
             if ratio >= 1:
                 for task_vehicle in vehicle.task_vehicle:
                     self.freqActions[task_vehicle.id] = 0.9 * round(self.freqActions[task_vehicle.id] / ratio, 2)
+                    self.reward[task_vehicle.id] += SmallPunish
         # 每个mec判断资源分配
         for mec in self.MECs:
             ratio = 0
@@ -215,6 +215,7 @@ class Env:
             if ratio > 1:
                 for task_vehicle in mec.task_vehicle:
                     self.freqActions[task_vehicle.id] = 0.9 * round(self.freqActions[task_vehicle.id] / ratio, 2)
+                    self.reward[task_vehicle.id] += SmallPunish
         # 分配资源
         for vehicle in self.vehicles:
             resource = vehicle.resources
@@ -402,13 +403,13 @@ class Env:
         # #     energy /= 10
         # self.avg_price[vehicle.id].append(price)
         # self.avg_energy[vehicle.id].append(energy)
-        reward = -sum_time / (task.size / 20)
+        reward = sum_time
 
         # if sum_time > task.max_time:
         #     reward += T2 * (sum_time - task.max_time) / 10
         # else:
         #     vehicle.success_task += 1
-        return round(reward, 2)  # + 2.7
+        return -round(reward, 2)  # + 2.7
 
     def compute_rewards(self):
         """
@@ -458,7 +459,7 @@ class Env:
                     f = task.compute_resource
                     # 遍历此车的所有任务列表
                     precessed_time = task.need_precess_cycle / f
-                    if precessed_time > time:
+                    if 80 > precessed_time > time:
                         # 不能处理完
                         task.need_precess_cycle -= f * time
                         retain_task.append(task)
@@ -474,7 +475,7 @@ class Env:
                 for task in total_task:
                     f = task.compute_resource
                     precessed_time = task.need_precess_cycle / f
-                    if precessed_time > time:
+                    if 80 > precessed_time > time:
                         task.need_precess_cycle -= f * time
                         retain_task.append(task)
                     else:
@@ -530,6 +531,7 @@ class Env:
 
         for mec in self.mecState:
             self.mecState.append(mec.get_state())
+            mec.clear_vehicle()
 
     # 执行动作
     def step(self, bandActions, offloadingActions, freqActions):
@@ -543,6 +545,10 @@ class Env:
         # 重置奖励
         self.reward = [0] * self.num_Vehicles
 
+        for mec in self.MECs:
+            mec.clear_vehicle()
+        for vehicle in self.vehicles:
+            vehicle.band = bandActions[vehicle.id]
         # 判断比率分配动作
         self.process_fracActions()
         # 处理选取任务动作
@@ -567,7 +573,7 @@ class Env:
         # print("当前有{}个任务没传输完成".format(len(self.need_trans_task)))
 
         # 平均奖励
-        self.Reward = np.mean([reward for i, reward in enumerate(self.reward) if i % 4 != 0])
+        self.Reward = np.mean([reward for i, reward in enumerate(self.reward)])  # if i % 4 != 0
         return vehicleState, neighbor_state, self.vehicleState, self.neighborState, self.Reward, self.reward
 
 
