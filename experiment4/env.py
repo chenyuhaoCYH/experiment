@@ -21,8 +21,8 @@ c = 0.2  # 奖励中支付占比
 T1 = -0.5
 T2 = -0.7
 T3 = 0.05
-PUNISH = 20
-SmallPunish = -5
+PUNISH = -20
+SmallPunish = -10
 
 # 价格系数（MEC、VEC、local）
 MEC_Price = 0.15
@@ -33,6 +33,8 @@ Ki = -10  # 非法动惩罚项(会导致任务直接失败，所以惩罚力度�
 Kq = 0.25  # 任务队列长度系数
 ko = 0.5  # 溢出任务系数
 Ks = 0.5  # 奖励占比
+
+positions = []
 
 np.random.seed(2)
 
@@ -102,7 +104,7 @@ class Env:
     # 添加车辆
     def add_new_vehicles(self, id, position, direction, velocity):
         vehicle = Vehicle(id=id, position=position, direction=direction, velocity=velocity)
-        # position.append([id, position, direction, velocity])
+        positions.append([position, direction, velocity])
         self.vehicles.append(vehicle)
 
     # 初始化/重置环境
@@ -140,6 +142,30 @@ class Env:
             start_direction = -1
             self.add_new_vehicles(i, start_position, start_direction, np.random.randint(28, 33))
             i += 1
+        # 初始化邻居信息
+        self.renew_neighbor()
+        # 初始化邻居mec
+        self.renew_mec()
+        # 初始化状态信息
+        for vehicle in self.vehicles:
+            # 全局状态
+            self.vehicleState.append(vehicle.get_state())
+        for vehicle in self.vehicles:
+            # 邻居状态
+            self.neighborState.append(vehicle.get_neighbor_states())
+        for mec in self.MECs:
+            self.mecState.append(mec.get_state())
+
+    def re(self):
+        self.vehicleState = []
+        self.neighborState = []
+        self.mecState = []
+        for i, vehicle in enumerate(self.vehicles):
+            # state = positions[i]
+            # vehicle.set_state(state[0], state[1], state[2])
+            state = positions[i]
+            self.vehicles[i] = Vehicle(i, state[0], state[1], state[2], vehicle.buffer)
+        self.MECs = [MEC([21, 500]), MEC([0, 1500]), MEC([21, 2500])]
         # 初始化邻居信息
         self.renew_neighbor()
         # 初始化邻居mec
@@ -236,7 +262,7 @@ class Env:
             if ratio >= 1:
                 for task_vehicle in vehicle.task_vehicle:
                     self.freqActions[task_vehicle.id] = 0.9 * round(self.freqActions[task_vehicle.id] / ratio, 2)
-                    # self.reward[task_vehicle.id] += SmallPunish
+                    self.reward[task_vehicle.id] += SmallPunish
         # 每个mec判断资源分配
         for mec in self.MECs:
             ratio = 0
@@ -262,7 +288,7 @@ class Env:
                     continue
                 # print("车{}获得{}服务器{}资源".format(task_vehicle.id, vehicle.id, task.compute_resource))
                 task.need_time = task.need_precess_cycle / task.compute_resource  # 记录任务需要计算时间(ms)
-                if task.need_time >= 100:
+                if task.need_time >= 70:
                     print("车{}任务超时".format(task_vehicle.id))
                     self.reward[task_vehicle.id] += PUNISH
                     task_vehicle.cur_task = None
@@ -290,7 +316,7 @@ class Env:
                     continue
                 # print("车{}获得{}服务器{}资源".format(task_vehicle.id, mec, task.compute_resource))
                 task.need_time = task.need_precess_cycle / task.compute_resource  # 记录任务需要计算时间(ms)
-                if task.need_time >= 100:
+                if task.need_time >= 70:
                     self.reward[task_vehicle.id] += PUNISH
                     print("车{}任务超时".format(task_vehicle.id))
                     task_vehicle.cur_task = None
@@ -435,7 +461,7 @@ class Env:
         # self.avg_price[vehicle.id].append(price)
         # self.avg_energy[vehicle.id].append(energy)
 
-        reward = 50 - sum_time * (task.size / 512)
+        reward = 10 - sum_time * (task.size / 512)
 
         # if sum_time > task.max_time:
         #     reward += T2 * (sum_time - task.max_time) / 10
@@ -606,7 +632,7 @@ class Env:
         # print("当前有{}个任务没传输完成".format(len(self.need_trans_task)))
 
         # 平均奖励
-        self.Reward = np.mean([reward for i, reward in enumerate(self.reward) if reward != 0])  # if i % 4 != 0
+        self.Reward = np.mean([reward for i, reward in enumerate(self.reward) if i % 4 != 0])  #
         return vehicleState, neighbor_state, self.vehicleState, self.neighborState, self.Reward, self.reward
 
 

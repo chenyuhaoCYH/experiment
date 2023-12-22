@@ -11,6 +11,50 @@ from torch.distributions.categorical import Categorical
 HID_SIZE = 64
 HID_SIZE_MIN = 32
 
+class DQNCNN(nn.Module):
+    def __init__(self, obs_dim, neighbor_dim, bankAction_dim, aimAction_dim, freqActions_dim):
+        super(DQNCNN, self).__init__()
+        self.input_layer = nn.Linear(obs_dim + 32, 128)
+        self.hidden1 = nn.Linear(128, 64)
+        self.hidden2 = nn.Linear(64, 64)
+        self.hidden3 = nn.Linear(64, 128)
+        self.cnn2 = CNNLayer(neighbor_dim, 32)
+        self.output_layer1 = self.common(64, bankAction_dim)
+        self.output_layer2 = self.common(64, aimAction_dim)
+        self.output_layer3 = self.common(64, freqActions_dim)
+
+    def common(self, input_dim, action_dim):
+        return nn.Sequential(
+            nn.Linear(input_dim, 128),
+            nn.ReLU(),
+            self.hidden1,
+            nn.ReLU(),
+            self.hidden2,
+            nn.ReLU(),
+            nn.Linear(64, action_dim)
+        )
+
+    def forward(self, x, neighbor):
+        """
+
+        :param x: batch_size*state_n
+        :return: batch_size*actions_n  输出每个动作对应的q值
+        """
+        # 任务卷积层
+        cnn_out2 = self.cnn2(neighbor)
+        x = torch.cat((x, cnn_out2), -1)
+
+        # 公共层
+        x1 = F.relu(self.input_layer(x))
+        x2 = F.relu(self.hidden1(x1))
+        x3 = F.relu(self.hidden2(x2))
+
+        bandActionValue = self.output_layer1(x3)
+        aimActionValue = self.output_layer2(x3)
+        freqActionValue = self.output_layer3(x3)
+
+        return bandActionValue, aimActionValue, freqActionValue
+
 
 class TargetNet:
     """

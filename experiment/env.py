@@ -21,8 +21,8 @@ c = 0.2  # 奖励中支付占比
 T1 = -0.5
 T2 = -0.7
 T3 = 0.05
-PUNISH = 15
-SmallPunish = 5
+PUNISH = -20
+SmallPunish = -10
 
 # 价格系数（MEC、VEC、local）
 MEC_Price = 0.15
@@ -403,13 +403,13 @@ class Env:
         # #     energy /= 10
         # self.avg_price[vehicle.id].append(price)
         # self.avg_energy[vehicle.id].append(energy)
-        reward = sum_time
+        reward = -sum_time  # / (task.size / 1024)
 
         # if sum_time > task.max_time:
         #     reward += T2 * (sum_time - task.max_time) / 10
         # else:
         #     vehicle.success_task += 1
-        return -round(reward, 2)  # + 2.7
+        return round(reward, 2)  # + 2.7
 
     def compute_rewards(self):
         """

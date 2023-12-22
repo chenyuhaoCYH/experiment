@@ -38,15 +38,15 @@ BATCH_SIZE = 64
 REPLAY_INITIAL = 1000
 TARGET_STEPS = 10
 
-EPSILON = 500000
+EPSILON = 20000
 
 EPSILON_DECAY_LAST_FRAME = 100000
 EPSILON_START = 0.6
 EPSILON_FINAL = 0.01
 
-RESOURCE = [0.2, 0.4, 0.5, 0.6]
+RESOURCE = [0.2, 0.4, 0.5, 0.6, 0.8]
 BandNum = 5  # 带宽选择
-FreqNum = 6  # 比率选择
+FreqNum = len(RESOURCE)  # 比率选择
 
 
 @torch.no_grad()
@@ -80,7 +80,7 @@ def play_step(env: Env, epsilon, models: list):
 
             actionAim.append(np.argmax(aimAction))
             actionBand.append(np.argmax(bandAction))
-            actionFreq.append(np.argmax(freqAction))
+            actionFreq.append(RESOURCE[np.argmax(freqAction)])
 
     vehicleState, neighbor_state, all_vehicleState, neighborState, Reward, reward = env.step(actionBand, actionAim,
                                                                                              actionFreq)
@@ -155,6 +155,9 @@ if __name__ == '__main__':
     while epsilon > 0:
         time_solt += 1
         print("the {} step".format(time_solt))
+        if time_solt > 0 and time_solt % 500 == 0:
+            print("重启环境..")
+            env.re()
         # 执行一步
         eps = max(EPSILON_FINAL, EPSILON_START - time_solt / EPSILON_DECAY_LAST_FRAME)
         reward = play_step(env, eps, actor_models)

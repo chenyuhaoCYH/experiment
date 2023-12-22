@@ -119,3 +119,30 @@ class ExperienceBuffer:
     # 清空
     def clear(self):
         self.buffer = collections.deque(maxlen=self.maxLen)
+
+
+class ExperienceBufferDQN:
+    def __init__(self, capacity):
+        self.maxLen = capacity
+        self.buffer = collections.deque(maxlen=capacity)  # 队列，先进先出
+
+    def __len__(self):
+        return len(self.buffer)
+
+    def append(self, experience: Experience):
+        self.buffer.append(experience)
+
+    def sample(self, batch_size):
+        indices = np.random.choice(len(self.buffer), batch_size, replace=False)
+        cur_otherState, cur_NeighborState, \
+        bandAction, aimAction, freqAction, rewards, \
+        next_otherState, next_NeighborState = zip(*[self.buffer[idx] for idx in indices])
+        # 转换成numpy
+        return np.array(cur_otherState), np.array(cur_NeighborState), \
+               np.array(bandAction), np.array(aimAction), np.array(freqAction), \
+               np.array(rewards, dtype=np.float32), \
+               np.array(next_otherState), np.array(next_NeighborState)
+
+    # 清空
+    def clear(self):
+        self.buffer = collections.deque(maxlen=self.maxLen)

@@ -40,7 +40,7 @@ SYNC_TARGET_FRAMES = 100  # 更新目标网络频率
 EPSILON_DECAY_LAST_FRAME = 150000
 EPSILON_START = 0.8
 EPSILON_FINAL = 0.01
-EPSILON = 400000
+EPSILON = 200000
 
 RESET = 1000  # 重置游戏次数
 
@@ -202,7 +202,7 @@ if __name__ == '__main__':
         total_reward.append(reward)
         print("current reward:", reward)
         print("current 100 times total rewards:", np.mean(total_reward[-100:]))
-        recent_reward.append(np.mean(total_reward[-100:]))
+        recent_reward.append(-np.mean(total_reward[-100:]))
         # if np.mean(total_reward[-100:]) > 0.7:
         #     break
 
@@ -231,8 +231,10 @@ if __name__ == '__main__':
                 torch.save(tgt_models[i].state_dict(),
                            "D:/pycharm/Project/VML/Experience/experiment/result/" + cur_time + "/vehicle" + str(
                                i) + ".pkl")
-
-    plt.plot(range(len(recent_reward)), recent_reward)
+    cur_time = time.strftime("%Y-%m-%d-%H", time.localtime(time.time())) + "-" + str(frame_idx)
+    array = np.array(recent_reward)
+    np.save('data/' + cur_time, array)
+    plt.plot(range(len(recent_reward) - 500), recent_reward[500:])
     # plt.plot(range(len(total_reward)), total_reward)
     plt.ylabel("Average Reward", fontproperties=prop)
     plt.xlabel("Episode", fontproperties=prop)

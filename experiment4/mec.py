@@ -51,13 +51,26 @@ class MEC:
         return self.loc
 
     def clear_vehicle(self):
-        self.resources = np.random.randint(2000, 10000)
+        # self.resources = np.random.randint(2000, 10000)
         # 范围内的车辆
         self.range_vehicle = []
         self.task_vehicle = []
         # 每段频谱选择的车辆
         self.pick_vehicle = [[] for _ in range(AVERAGE)]
+        # 当前接到需要处理的任务信息(最多同时处理10个任务)
+        self.accept_task = []
         self.cur_resource = self.resources
+
+    def re(self):
+        # 范围内的车辆
+        self.range_vehicle = []
+        self.task_vehicle = []
+        # 每段频谱选择的车辆
+        self.pick_vehicle = [[] for _ in range(AVERAGE)]
+        # 当前总资源
+        self.cur_resource = RESOURCE
+        # 当前可用资源 MHz
+        self.resources = RESOURCE
 
     """
         获得状态

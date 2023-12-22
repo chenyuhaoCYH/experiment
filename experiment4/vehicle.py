@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from memory import ExperienceBuffer, PPOMemory
+from memory import ExperienceBuffer, ExperienceBufferDQN,PPOMemory
 from task import Task
 
 Dv = 100  # 车的最大通信范围
@@ -15,7 +15,7 @@ np.random.seed(2)
 
 class Vehicle:
     # 位置：x，y 速度、方向：-1左，1右
-    def __init__(self, id, position, direction, velocity=20):
+    def __init__(self, id, position, direction, velocity=20, buffer=None):
         self.id = id
         # 车的位置信息
         self.loc_x = position[0]
@@ -65,16 +65,19 @@ class Vehicle:
         # 去除邻居的状态信息用于邻居车观察和全局critic的处理
         self.excludeNeighbor_state = []
         # 缓冲池
-        self.buffer = ExperienceBuffer(capacity=CAPACITY)
+        if buffer is None:
+            self.buffer = ExperienceBufferDQN(capacity=CAPACITY)
+        else:
+            self.buffer = buffer
         # 总奖励
         self.reward = []
         # 任务溢出的数量
         self.overflow = 0
         # 上一个任务产生的时间
-        self.lastCreatWorkTime = 0
+        self.lastCreatWorkTime = -20
 
         self.timeSolt = TASK_SOLT  # * (id % 2 + 1)
-        self.memory = ExperienceBuffer(CAPACITY)
+        self.memory = ExperienceBufferDQN(CAPACITY)
         # 产生任务
         self.create_work()
 
@@ -88,6 +91,31 @@ class Vehicle:
         self.loc_x = loc_x
         self.loc_y = loc_y
         self.position = [self.loc_x, self.loc_y]
+
+    def set_state(self, position, direction, velocity):
+        self.position = position
+        self.velocity = velocity
+        self.direction = direction
+        self.loc_x = position[0]
+        self.loc_y = position[1]
+        # 接受的任务的列表
+        self.accept_task = []
+        # 当前选择此目标的车辆
+        self.task_vehicle = []
+        # 接受任务的数量(包括处理的任务和正在等待的任务)
+        self.sum_needDeal_task = 0
+        # 当前可用资源
+        self.resources = Fv  # round((1 - np.random.randint(1, 3) / 10) * Fv, 2)  # MHz
+        # 当前总资源
+        self.cur_resource = self.resources
+        # 表示当前是否有任务正在传输给邻居车辆（0：没有，1：有）
+        self.trans_task_for_vehicle = 0
+        # 当前选择的信道
+        self.band = -1
+        # 当前处理的任务（用于计算奖励，不用于状态信息）
+        self.cur_task = None
+        self.memory = ExperienceBuffer(CAPACITY)
+        self.create_work()
 
     # 获得x
     @property
@@ -113,9 +141,12 @@ class Vehicle:
                 self.cur_task = None
 
     def clear(self):
-        self.resources = np.random.randint(500, 2000)
+        # self.resources = Fv
         self.cur_resource = self.resources
         self.task_vehicle = []
+        # 接受的任务的列表
+        self.accept_task = []
+        # self.memory = ExperienceBuffer(CAPACITY)
         self.overflow = 0
 
     """

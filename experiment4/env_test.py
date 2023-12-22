@@ -36,8 +36,9 @@ if __name__ == '__main__':
         offloadingActions = []
         bandActions = []
         freqActions = []
-        # if step % 1000 == 1:
-        #     env.reset()
+        if step % 1000 == 1:
+            print("重启环境..")
+            env.re()
         for i in range(env.num_Vehicles):
             offloadingActions.append(np.random.randint(0, 7))
             bandActions.append(np.random.randint(0, 5))
