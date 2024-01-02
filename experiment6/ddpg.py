@@ -38,7 +38,7 @@ BATCH_SIZE = 64
 REPLAY_INITIAL = 1000
 TARGET_STEPS = 10
 
-EPSILON = 200000
+EPSILON = 50000
 
 EPSILON_DECAY_LAST_FRAME = 100000
 EPSILON_START = 0.6
@@ -228,11 +228,11 @@ if __name__ == '__main__':
         if time_solt % 50000 == 0 and time_solt != 0:
             cur_time = time.strftime("%Y-%m-%d-%H-%M", time.localtime(time.time())) + "-" + str(time_solt)
             # 创建文件夹
-            os.makedirs("D:/pycharm/Project/VML/Experience/experiment3/result/" + cur_time)
+            os.makedirs("D:/pycharm/Project/VML/Experience/experiment6/result/" + cur_time)
             for i, vehicle in enumerate(env.vehicles):
                 # 保存每个网络模型
                 torch.save(actor_target_models[i].target_model.state_dict(),
-                           "D:/pycharm/Project/VML/Experience/experiment3/result/" + cur_time + "/vehicle" + str(
+                           "D:/pycharm/Project/VML/Experience/experiment6/result/" + cur_time + "/vehicle" + str(
                                i) + ".pkl")
     cur_time = time.strftime("%Y-%m-%d-%H", time.localtime(time.time())) + "-" + str(epsilon)
     array = np.array(recent_reward)

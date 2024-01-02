@@ -11,6 +11,7 @@ from torch.distributions.categorical import Categorical
 HID_SIZE = 64
 HID_SIZE_MIN = 32
 
+
 class DQNCNN(nn.Module):
     def __init__(self, obs_dim, neighbor_dim, bankAction_dim, aimAction_dim, freqActions_dim):
         super(DQNCNN, self).__init__()
@@ -172,7 +173,7 @@ class ModelCritic(nn.Module):
         self.aim_value = nn.Sequential(
             nn.Linear(HID_SIZE + aim_action, HID_SIZE * 2),
             nn.ReLU(),
-            SelfAttention(8, HID_SIZE*2, HID_SIZE*2, 0.2),
+            SelfAttention(8, HID_SIZE * 2, HID_SIZE * 2, 0.2),
             nn.Linear(HID_SIZE * 2, HID_SIZE),
             nn.ReLU(),
             SelfAttention(8, HID_SIZE, HID_SIZE, 0.2),

@@ -33,7 +33,7 @@ Experience = namedtuple('Transition',
                                      'next_otherState', 'next_NeighborState'])  # Define a transition tuple
 GAMMA = 0.99
 BATCH_SIZE = 64
-REPLAY_SIZE = 1000
+REPLAY_SIZE = 10000
 LEARNING_RATE = 1e-4
 SYNC_TARGET_FRAMES = 100  # 更新目标网络频率
 
@@ -81,7 +81,7 @@ def play_step(env, epsilon, models):
 
             actionAim.append(np.argmax(aimAction))
             actionBand.append(np.argmax(bandAction))
-            actionFreq.append(np.argmax(freqAction))
+            actionFreq.append(RESOURCE[np.argmax(freqAction)])
     # print("action:", action)
     _, _, otherState, neighborState, Reward, reward = env.step(actionBand, actionAim, actionFreq)
     # print("reward:", reward)
@@ -196,6 +196,9 @@ if __name__ == '__main__':
         #     agents = env.vehicles
         #     # for i, vehicle in enumerate(agents):
         #     #     vehicle.buffer = memory[i]
+        # if frame_idx > 0 and frame_idx % 5000 == 0:
+        #     env.re()
+        #     print("重启环境..")
         print("the {} steps".format(frame_idx))
         epsilon = max(EPSILON_FINAL, EPSILON_START - frame_idx / EPSILON_DECAY_LAST_FRAME)
         reward = play_step(env, epsilon, models)
@@ -225,16 +228,16 @@ if __name__ == '__main__':
         if frame_idx % 10000 == 0 and frame_idx != 0:
             cur_time = time.strftime("%Y-%m-%d-%H", time.localtime(time.time())) + "-" + str(frame_idx)
             # 创建文件夹
-            os.makedirs("D:/pycharm/Project/VML/Experience/experiment/result/" + cur_time)
+            os.makedirs("D:/pycharm/Project/VML/Experience/experiment4/result/" + cur_time)
             for i, vehicle in enumerate(env.vehicles):
                 # 保存每个网络模型
                 torch.save(tgt_models[i].state_dict(),
-                           "D:/pycharm/Project/VML/Experience/experiment/result/" + cur_time + "/vehicle" + str(
+                           "D:/pycharm/Project/VML/Experience/experiment4/result/" + cur_time + "/vehicle" + str(
                                i) + ".pkl")
     cur_time = time.strftime("%Y-%m-%d-%H", time.localtime(time.time())) + "-" + str(frame_idx)
     array = np.array(recent_reward)
     np.save('data/' + cur_time, array)
-    plt.plot(range(len(recent_reward) - 500), recent_reward[500:])
+    plt.plot(range(len(recent_reward)), recent_reward)
     # plt.plot(range(len(total_reward)), total_reward)
     plt.ylabel("Average Reward", fontproperties=prop)
     plt.xlabel("Episode", fontproperties=prop)

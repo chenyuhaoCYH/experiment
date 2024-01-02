@@ -38,15 +38,15 @@ BATCH_SIZE = 64
 REPLAY_INITIAL = 1000
 TARGET_STEPS = 10
 
-EPSILON = 500000
+EPSILON = 200000
 
 EPSILON_DECAY_LAST_FRAME = 100000
 EPSILON_START = 0.6
 EPSILON_FINAL = 0.01
 
-RESOURCE = [0.2, 0.4, 0.5, 0.6]
+RESOURCE = [0.2, 0.4, 0.5, 0.6, 0.8]
 BandNum = 5  # 带宽选择
-FreqNum = 6  # 比率选择
+FreqNum = len(RESOURCE)  # 比率选择
 
 
 @torch.no_grad()
@@ -80,7 +80,7 @@ def play_step(env: Env, epsilon, models: list):
 
             actionAim.append(np.argmax(aimAction))
             actionBand.append(np.argmax(bandAction))
-            actionFreq.append(np.argmax(freqAction))
+            actionFreq.append(RESOURCE[np.argmax(freqAction)])
 
     vehicleState, neighbor_state, all_vehicleState, neighborState, Reward, reward = env.step(actionBand, actionAim,
                                                                                              actionFreq)
@@ -162,8 +162,8 @@ if __name__ == '__main__':
         print("current reward:", reward)
         print("current 100 times total rewards:", np.mean(total_reward[-100:]))
         recent_reward.append(np.mean(total_reward[-100:]))
-        if epsilon % 100000 == 0:
-            env.reset()
+        # if epsilon % 100000 == 0:
+        #     env.reset()
         # if np.mean(total_reward[-100:]) > 0.7:
         #     break
 
@@ -234,6 +234,9 @@ if __name__ == '__main__':
                 torch.save(actor_target_models[i].target_model.state_dict(),
                            "D:/pycharm/Project/VML/Experience/experiment3/result/" + cur_time + "/vehicle" + str(
                                i) + ".pkl")
+    cur_time = time.strftime("%Y-%m-%d-%H", time.localtime(time.time())) + "-" + str(epsilon)
+    array = np.array(recent_reward)
+    np.save('data/' + cur_time, array)
 
     plt.plot(range(len(recent_reward)), recent_reward)
     plt.title("当前最近100次奖励曲线")
