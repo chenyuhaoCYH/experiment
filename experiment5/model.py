@@ -109,7 +109,7 @@ class ModelCritic(nn.Module):
         self.cnn = CNNLayer(obs_size, HID_SIZE)
 
         self.bank_value = nn.Sequential(
-            nn.Linear(HID_SIZE * 2 + bank_action, HID_SIZE * 2),
+            nn.Linear(HID_SIZE + bank_action, HID_SIZE * 2),
             nn.ReLU(),
             nn.Linear(HID_SIZE * 2, HID_SIZE),
             nn.ReLU(),
@@ -118,7 +118,7 @@ class ModelCritic(nn.Module):
             nn.Linear(HID_SIZE_MIN, 1),
         )
         self.aim_value = nn.Sequential(
-            nn.Linear(HID_SIZE * 2 + aim_action, HID_SIZE * 2),
+            nn.Linear(HID_SIZE + aim_action, HID_SIZE * 2),
             nn.ReLU(),
             nn.Linear(HID_SIZE * 2, HID_SIZE),
             nn.ReLU(),
@@ -127,7 +127,7 @@ class ModelCritic(nn.Module):
             nn.Linear(HID_SIZE_MIN, 1),
         )
         self.freq_value = nn.Sequential(
-            nn.Linear(HID_SIZE * 2 + freq_action, HID_SIZE * 2),
+            nn.Linear(HID_SIZE+ freq_action, HID_SIZE * 2),
             nn.ReLU(),
             nn.Linear(HID_SIZE * 2, HID_SIZE),
             nn.ReLU(),
